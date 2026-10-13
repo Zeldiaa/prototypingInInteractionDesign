@@ -46,13 +46,16 @@ long firstPixelHue = 0;
 
 // ---------------- BUTTON SETTINGS ----------------
 
+int lastButtonState = HIGH;
 int buttonState = HIGH;
 
-int vibrationStrength = 5;
+int vibrationStrength = 50;
 int fadeAmount = 1;
 
 unsigned long lastVibrationUpdate = 0;
-const int waveSpeed = 10;  // Smaller = faster waves
+const int waveSpeed = 20;  // Smaller = faster waves
+
+bool vibrationActive = false;
 
 // ==================================================
 // SETUP
@@ -88,13 +91,19 @@ void loop() {
 
   buttonState = digitalRead(BUTTON_PIN);
 
-
-  // INPUT_PULLUP means LOW = button pressed
-  if (buttonState == LOW) {
-    digitalWrite(MOTOR_PIN, vibrationStrength);
-  } else {
-    digitalWrite(MOTOR_PIN, LOW);
+  if (buttonState == LOW && lastButtonState == HIGH) {
+    Serial.println("button on");
+    Serial.println(vibrationActive);
+    vibrationActive = switchVibrationState(vibrationActive);
+    Serial.println(vibrationActive);
   }
+
+  
+
+
+
+
+lastButtonState = buttonState;
 
 
   // -----------------------------------------------
@@ -184,7 +193,11 @@ void loop() {
 
   // No long delay here:
   // the button, motor, sensor and lights stay responsive.
-  updateVibration();
+
+  //If the vibration is active, keep updating. Otherwise do nothing
+  if (vibrationActive) {
+    updateVibration();
+  }
 }
 
 void updateVibration() {
@@ -200,11 +213,23 @@ void updateVibration() {
         fadeAmount = -1;
       }
 
-      if (vibrationStrength <= 5) {
-        vibrationStrength = 5;
+      if (vibrationStrength <= 50) {
+        vibrationStrength = 50;
         fadeAmount = 1;
       }
 
       analogWrite(MOTOR_PIN, vibrationStrength);
     }
   }
+
+//Update vibration state of the vibration motor
+bool switchVibrationState(bool active) {
+  if (active) {
+    analogWrite(MOTOR_PIN, 0);
+    active = false;
+  }
+  else {
+    active = true;
+  }
+  return active;
+}
