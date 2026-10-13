@@ -49,11 +49,13 @@ long firstPixelHue = 0;
 int lastButtonState = HIGH;
 int buttonState = HIGH;
 
-int vibrationStrength = 50;
+// ---------------- VIBRATION SETTINGS ----------------
+
+int vibrationStrength = 0;
 int fadeAmount = 1;
 
 unsigned long lastVibrationUpdate = 0;
-const int waveSpeed = 20;  // Smaller = faster waves
+const int waveSpeed = 40;  // Smaller = faster waves
 
 bool vibrationActive = false;
 
@@ -92,8 +94,6 @@ void loop() {
   buttonState = digitalRead(BUTTON_PIN);
 
   if (buttonState == LOW && lastButtonState == HIGH) {
-    Serial.println("button on");
-    Serial.println(vibrationActive);
     vibrationActive = switchVibrationState(vibrationActive);
     Serial.println(vibrationActive);
   }
@@ -208,13 +208,15 @@ void updateVibration() {
 
       vibrationStrength += fadeAmount;
 
-      if (vibrationStrength >= 200) {
-        vibrationStrength = 200;
+      if (vibrationStrength == 255) {
+        Serial.println("Maximum");
+        vibrationStrength = 254;
         fadeAmount = -1;
       }
 
-      if (vibrationStrength <= 50) {
-        vibrationStrength = 50;
+      if (vibrationStrength == 0) {
+        Serial.println("Minimum");
+        vibrationStrength = 1;
         fadeAmount = 1;
       }
 
