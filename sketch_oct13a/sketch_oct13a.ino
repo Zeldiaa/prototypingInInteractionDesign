@@ -40,7 +40,7 @@ const unsigned long knockCooldown = 200;
 int mode = 0;  // 0 = lights off, 1 = rainbow
 
 unsigned long lastRainbowUpdate = 0;
-const unsigned long rainbowInterval = 10;
+const unsigned long rainbowInterval = 20;
 
 long firstPixelHue = 0;
 
@@ -55,7 +55,7 @@ int vibrationStrength = 0;
 int fadeAmount = 1;
 
 unsigned long lastVibrationUpdate = 0;
-const int waveSpeed = 40;  // Smaller = faster waves
+const int waveSpeed = 30;  // Smaller = faster waves
 
 bool vibrationActive = false;
 
@@ -98,7 +98,6 @@ void loop() {
     Serial.println(vibrationActive);
   }
 
-  
 
 
 
@@ -162,34 +161,44 @@ lastButtonState = buttonState;
   }
 
   // -----------------------------------------------
-  // 4. UPDATE LIGHTS WITHOUT BLOCKING THE LOOP
-  // -----------------------------------------------
+// 4. UPDATE LIGHTS WITHOUT BLOCKING THE LOOP
+// -----------------------------------------------
 
-  if (mode == 1 &&
-      now - lastRainbowUpdate >= rainbowInterval) {
+if (mode == 1 &&
+    now - lastRainbowUpdate >= rainbowInterval) {
 
-    lastRainbowUpdate = now;
+  lastRainbowUpdate = now;
 
-    for (int i = 0; i < strip.numPixels(); i++) {
+  for (int i = 0; i < strip.numPixels(); i++) {
 
-      int pixelHue =
-        firstPixelHue +
-        (i * 65536L / strip.numPixels());
+    // Repeat the red-orange gradient 4 times
+    // across the strip
+    int phase = (i * 256 / 5 + firstPixelHue) % 256;
 
-      strip.setPixelColor(
-        i,
-        strip.gamma32(strip.ColorHSV(pixelHue))
-      );
-    }
+    // Triangle wave: smoothly blend red -> orange -> red
+    int blend;
+if (phase < 128) {
+  blend = phase * 255 / 128;
+} else {
+  blend = (255 - phase) * 255 / 128;
+}
 
-    strip.show();
+    // Red stays strong; green adds reddish-orange
+    int red = 255;
+    int green = map(blend, 0, 255, 0, 50);
+    int blue = map(blend, 0, 255, 5, 0);
 
-    firstPixelHue += 256;
-
-    if (firstPixelHue >= 3L * 65536L) {
-      firstPixelHue = 0;
-    }
+    strip.setPixelColor(
+      i,
+      strip.Color(red, green, blue)
+    );
   }
+
+  strip.show();
+
+  // Slow rotation; smaller number = slower movement
+  firstPixelHue = (firstPixelHue + 1) % 256;
+}
 
   // No long delay here:
   // the button, motor, sensor and lights stay responsive.
@@ -207,6 +216,7 @@ void updateVibration() {
       lastVibrationUpdate = now;
 
       vibrationStrength += fadeAmount;
+      Serial.println(vibrationStrength);
 
       if (vibrationStrength == 255) {
         Serial.println("Maximum");
@@ -214,9 +224,9 @@ void updateVibration() {
         fadeAmount = -1;
       }
 
-      if (vibrationStrength == 0) {
+      if (vibrationStrength <= 100) {
         Serial.println("Minimum");
-        vibrationStrength = 1;
+        vibrationStrength = 101;
         fadeAmount = 1;
       }
 
@@ -231,6 +241,8 @@ bool switchVibrationState(bool active) {
     active = false;
   }
   else {
+    //analogWrite(MOTOR_PIN, 100);
+    vibrationStrength = 100;
     active = true;
   }
   return active;
