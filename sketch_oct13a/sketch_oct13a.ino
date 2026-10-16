@@ -13,7 +13,7 @@
 #define BUTTON_PIN  7
 #define MOTOR_PIN   3
 
-#define BRIGHTNESS 30
+#define BRIGHTNESS 200
 
 // ---------------- NEOPIXELS ----------------
 
@@ -26,7 +26,7 @@ Adafruit_NeoPixel strip(
 // ---------------- KNOCK SETTINGS ----------------
 
 int knockValue = 0;
-int knockThreshold = 50;
+int knockThreshold = 100;
 
 bool waitingForSecondKnock = false;
 unsigned long firstKnockTime = 0;
@@ -43,6 +43,21 @@ unsigned long lastRainbowUpdate = 0;
 const unsigned long rainbowInterval = 20;
 
 long firstPixelHue = 0;
+
+// LED startup sequence
+int startupPixel = 0;
+bool startupSequenceActive = false;
+
+unsigned long lastStartupUpdate = 0;
+const unsigned long startupInterval = 100;  // Time between LEDs (ms)
+
+// LED fade-out settings
+bool fadingOut = false;
+int fadeBrightness = BRIGHTNESS;
+
+unsigned long lastFadeUpdate = 0;
+const unsigned long fadeInterval = 15;
+const int fadeStep = 1;
 
 // ---------------- BUTTON SETTINGS ----------------
 
@@ -133,14 +148,27 @@ lastButtonState = buttonState;
         mode = 1 - mode;
 
         if (mode == 0) {
-          strip.clear();
-          strip.show();
-          Serial.println("Lights OFF");
+          fadingOut = true;
+          fadeBrightness = BRIGHTNESS;
+          lastFadeUpdate = now;
+
+          startupSequenceActive = false;
+
+          Serial.println("Lights fading out");
         }
 
         if (mode == 1) {
           firstPixelHue = 0;
-          Serial.println("Rainbow ON");
+
+          // Start the sequential LED startup
+          startupPixel = 0;
+          startupSequenceActive = true;
+          lastStartupUpdate = now;
+
+          strip.clear();
+          strip.show();
+
+          Serial.println("Lights starting");
         }
 
         waitingForSecondKnock = false;
@@ -164,40 +192,105 @@ lastButtonState = buttonState;
 // 4. UPDATE LIGHTS WITHOUT BLOCKING THE LOOP
 // -----------------------------------------------
 
-if (mode == 1 &&
-    now - lastRainbowUpdate >= rainbowInterval) {
+if (mode == 1 && startupSequenceActive) {
 
-  lastRainbowUpdate = now;
+    if (now - lastStartupUpdate >= startupInterval) {
+      lastStartupUpdate = now;
 
-  for (int i = 0; i < strip.numPixels(); i++) {
+      // Turn on one LED at a time
+      int i = startupPixel;
 
-    // Repeat the red-orange gradient 4 times
-    // across the strip
-    int phase = (i * 256 / 5 + firstPixelHue) % 256;
+      int phase = (i * 256 / 5 + firstPixelHue) % 256;
 
-    // Triangle wave: smoothly blend red -> orange -> red
-    int blend;
-if (phase < 128) {
-  blend = phase * 255 / 128;
-} else {
-  blend = (255 - phase) * 255 / 128;
-}
+      int blend;
+      if (phase < 128) {
+        blend = phase * 255 / 128;
+      } else {
+        blend = (255 - phase) * 255 / 128;
+      }
 
-    // Red stays strong; green adds reddish-orange
-    int red = 255;
-    int green = map(blend, 0, 255, 0, 50);
-    int blue = map(blend, 0, 255, 5, 0);
+      int red = 255;
+      int green = map(blend, 0, 255, 0, 65);
+      int blue = 0;
 
-    strip.setPixelColor(
-      i,
-      strip.Color(red, green, blue)
-    );
+      strip.setPixelColor(
+        startupPixel,
+        strip.Color(red, green, blue)
+      );
+
+      strip.show();
+
+      startupPixel++;
+
+      // Once every LED is on, start the animation
+      if (startupPixel >= strip.numPixels()) {
+        startupSequenceActive = false;
+        lastRainbowUpdate = now;
+      }
+    }
   }
 
-  strip.show();
+  // Normal animation begins after startup
+  if (mode == 1 &&
+      !startupSequenceActive &&
+      now - lastRainbowUpdate >= rainbowInterval) {
 
-  // Slow rotation; smaller number = slower movement
-  firstPixelHue = (firstPixelHue + 1) % 256;
+    lastRainbowUpdate = now;
+
+    for (int i = 0; i < strip.numPixels(); i++) {
+
+      int phase = (i * 256 / 5 + firstPixelHue) % 256;
+
+      int blend;
+      if (phase < 128) {
+        blend = phase * 255 / 128;
+      } else {
+        blend = (255 - phase) * 255 / 128;
+      }
+
+      int red = 255;
+      int green = map(blend, 0, 255, 0, 65);
+      int blue = 0;
+
+      strip.setPixelColor(
+        i,
+        strip.Color(red, green, blue)
+      );
+    }
+
+    strip.show();
+
+    // Slow rotation
+    firstPixelHue = (firstPixelHue + 1) % 256;
+  }
+
+  // -----------------------------------------------
+// 5. FADE OUT LIGHTS WITHOUT BLOCKING THE LOOP
+// -----------------------------------------------
+
+if (fadingOut && now - lastFadeUpdate >= fadeInterval) {
+
+  lastFadeUpdate = now;
+
+  fadeBrightness -= fadeStep;
+
+  if (fadeBrightness <= 0) {
+    fadeBrightness = 0;
+
+    strip.clear();
+    strip.show();
+
+    fadingOut = false;
+
+    // Restore normal brightness for next time
+    strip.setBrightness(BRIGHTNESS);
+
+    Serial.println("Lights OFF");
+  }
+  else {
+    strip.setBrightness(fadeBrightness);
+    strip.show();
+  }
 }
 
   // No long delay here:
